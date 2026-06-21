@@ -34,10 +34,9 @@ def init_database():
         load_data_from_files()
 
 # ==========================================
-# 2. FILE LOADING (Handles Excel & CSV Formats)
+# 2. FILE LOADING (Excel Parsing Fix)
 # ==========================================
 def load_data_from_files():
-    # Checking for .xlsx or alternative naming formats
     file_name = 'Words.xlsx'
     if not os.path.exists(file_name) and os.path.exists('word.xlsx'):
         file_name = 'word.xlsx'
@@ -72,13 +71,13 @@ def load_data_from_files():
         except Exception as e:
             st.sidebar.error(f"File read error: {e}")
     else:
-        st.sidebar.warning(f"⚠️ Dataset file not found! Please check file path placement.")
+        st.sidebar.warning(f"⚠️ Dataset file '{file_name}' not found! Place it next to app.py.")
 
 # Initialize Database
 init_database()
 
 # ==========================================
-# 3. INTERACTIVE WEB UI (ENGLISH)
+# 3. INTERACTIVE WEB UI (Clean Search Focus)
 # ==========================================
 st.title("📚 English ⇄ Urdu Task Dictionary")
 st.write("Search for specific words to find meanings and listen to pronunciations instantly.")
@@ -145,4 +144,46 @@ with col2:
         
         # English Word Display
         st.markdown(f"""
-        <div
+        <div style="background-color: #f9f9f9; padding: 20px; border-radius: 10px; border-left: 5px solid #2b5797; margin-bottom: 15px;">
+            <p style="color: grey; font-size: 14px; margin: 0;">English Word</p>
+            <h1 style="margin: 0; color: #2b5797;">{eng_word}</h1>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Urdu Meaning Display
+        st.markdown(f"""
+        <div style="background-color: #f1f9f5; padding: 20px; border-radius: 10px; border-left: 5px solid #27ae60; text-align: right;">
+            <p style="color: grey; font-size: 14px; margin: 0; text-align: left;">Urdu Meaning / ترجمہ</p>
+            <h1 style="margin: 0; color: #27ae60; font-family: 'Arial';">{urdu_mean}</h1>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        # Interactive Audio and Action Row
+        btn_col1, btn_col2 = st.columns(2)
+        
+        with btn_col1:
+            st.write("🔊 **Pronunciation:**")
+            try:
+                tts = gTTS(text=eng_word, lang='en')
+                audio_fp = io.BytesIO()
+                tts.write_to_fp(audio_fp)
+                audio_fp.seek(0)
+                st.audio(audio_fp.read(), format='audio/mp3')
+            except Exception as ex:
+                st.error("Internet connection required for voice feature.")
+                
+        with btn_col2:
+            st.write("⭐ **Favorite Status:**")
+            fav_button_text = "❌ Remove from Favorites" if is_fav == 1 else "⭐ Add to Favorites"
+            if st.button(fav_button_text, use_container_width=True):
+                new_status = 0 if is_fav == 1 else 1
+                
+                conn_write = sqlite3.connect(DB_NAME)
+                cursor_write = conn_write.cursor()
+                cursor_write.execute("UPDATE dictionary_words SET is_favorite = ? WHERE id = ?", (new_status, word_id))
+                conn_write.commit()
+                conn_write.close()
+                
+                st.rerun()
