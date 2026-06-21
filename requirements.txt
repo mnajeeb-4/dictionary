@@ -1,3 +1,4 @@
-streamlit>=1.35.0
-sqlalchemy>=2.0.0
-SpeechRecognition>=3.10.0
+streamlit
+pandas
+gTTS
+openpyxl
