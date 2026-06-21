@@ -11,12 +11,11 @@ st.set_page_config(page_title="English-Urdu Dictionary", layout="wide", page_ico
 DB_NAME = 'dictionary.db'
 
 # ==========================================
-# 1. DATABASE SETUP (Safe & Atomic)
+# 1. DATABASE SETUP
 # ==========================================
 def init_database():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    # Table structure aapki file ke mutabik
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS dictionary_words (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,20 +34,26 @@ def init_database():
         load_data_from_files()
 
 # ==========================================
-# 2. AAPKI FILE SE DATA LOAD KARNA
+# 2. FILE SE DATA LOAD KARNA (Aapki File Ke Naam Ke Mutabik)
 # ==========================================
 def load_data_from_files():
-    file_name = 'Words.xlsx - A.csv'
+    # Yahan humne aapki file ka exact naam rakh diya hai
+    file_name = 'Words.xlsx'
     
+    # Agar aapne naam small letters mein likha hai 'word.xlsx', toh yeh usko bhi check karega
+    if not os.path.exists(file_name) and os.path.exists('word.xlsx'):
+        file_name = 'word.xlsx'
+        
     if os.path.exists(file_name):
         try:
-            # CSV file ko read karna (S#, WORDS, MEANING columns)
+            # Pandas automatic dhoond lega agar yeh CSV format mein hai
             df = pd.read_csv(file_name, encoding='utf-8')
             
             conn = sqlite3.connect(DB_NAME)
             cursor = conn.cursor()
             
             for _, row in df.iterrows():
+                # Aapki file ke columns: 'WORDS' aur 'MEANING'
                 eng = str(row['WORDS']).strip()
                 urdu = str(row['MEANING']).strip()
                 
@@ -60,11 +65,11 @@ def load_data_from_files():
             
             conn.commit()
             conn.close()
-            st.sidebar.success("✅ Data load ho gaya!")
+            st.sidebar.success("✅ Data file se kamyabi se load ho gaya!")
         except Exception as e:
             st.sidebar.error(f"File read karne mein error: {e}")
     else:
-        st.sidebar.warning(f"⚠️ '{file_name}' nahi mili! Is file ko app.py ke sath rakhein.")
+        st.sidebar.warning(f"⚠️ '{file_name}' file nahi mili! Is file ko app.py ke sath rakhein.")
 
 # Database initialize karein
 init_database()
@@ -83,7 +88,7 @@ with st.sidebar:
     search_query = st.text_input("Yahan type karein (Live Search):", "").strip()
     show_favorites = st.checkbox("⭐ Sirf Favorites Dikhayein")
 
-# DB se filtered content nikalna (Alag connection taaki lock na ho)
+# DB se filtered content nikalna
 conn = sqlite3.connect(DB_NAME)
 cursor = conn.cursor()
 
@@ -101,7 +106,7 @@ query += " ORDER BY english_word ASC LIMIT 100"
 
 cursor.execute(query, params)
 results = cursor.fetchall()
-conn.close() # Connection ko fauran close kar diya
+conn.close()
 
 # UI Layout Columns
 col1, col2 = st.columns([1, 2])
@@ -153,8 +158,8 @@ with col2:
                 tts = gTTS(text=eng_word, lang='en')
                 audio_fp = io.BytesIO()
                 tts.write_to_fp(audio_fp)
-                audio_fp.seek(0) # FIX: Pointer ko shuru mein laayein
-                st.audio(audio_fp.read(), format='audio/mp3') # FIX: Direct bytes read karein
+                audio_fp.seek(0)
+                st.audio(audio_fp.read(), format='audio/mp3')
             except Exception as ex:
                 st.error("Audio ke liye internet connection zaroori hai.")
                 
@@ -164,7 +169,6 @@ with col2:
             if st.button(fav_button_text, use_container_width=True):
                 new_status = 0 if is_fav == 1 else 1
                 
-                # Alag se write connection kholna safe rehata hai
                 conn_write = sqlite3.connect(DB_NAME)
                 cursor_write = conn_write.cursor()
                 cursor_write.execute("UPDATE dictionary_words SET is_favorite = ? WHERE id = ?", (new_status, word_id))
