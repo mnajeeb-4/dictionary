@@ -5,7 +5,7 @@ import os
 from gtts import gTTS
 import io
 
-# Page Config (Design aur Layout)
+# Page Configuration
 st.set_page_config(page_title="English-Urdu Dictionary", layout="wide", page_icon="📚")
 
 # ==========================================
@@ -18,7 +18,7 @@ def get_db_connection():
 def init_database():
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Table schema aapke columns ke mutabik
+    # Table structure aapke data ke mutabik
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS dictionary_words (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,33 +29,33 @@ def init_database():
     ''')
     conn.commit()
     
-    # Check karein agar table khali hai toh data load karein
+    # Check karein agar data pehle se maujood nahi hai toh load karein
     cursor.execute("SELECT COUNT(*) FROM dictionary_words")
     if cursor.fetchone()[0] == 0:
-        load_data_from_your_file(conn)
+        load_data_from_files(conn)  # <-- Yeh naam ab bilkul sahi hai!
         
     conn.close()
 
 # ==========================================
-# 2. AAPKI FILE SE DATA EXTRACT KARNA
+# 2. AAPKI FILE SE DATA LOAD KARNA
 # ==========================================
 def load_data_from_files(conn):
     cursor = conn.cursor()
     
-    # Aapki file ka exact naam aur path
+    # Aapki file ka sahi naam
     file_name = 'Words.xlsx - A.csv'
     
     if os.path.exists(file_name):
         try:
-            # CSV file ko read karna (UTF-8 encoding ke sath taaki Urdu kharab na ho)
+            # CSV file ko read karna (Urdu fonts ke liye utf-8 zaroori hai)
             df = pd.read_csv(file_name, encoding='utf-8')
             
-            # Aapki file ke exact columns: 'WORDS' aur 'MEANING'
+            # Aapki file ke columns: 'WORDS' aur 'MEANING'
             for _, row in df.iterrows():
                 eng = str(row['WORDS']).strip()
                 urdu = str(row['MEANING']).strip()
                 
-                # Khali rows ko skip karne ke liye
+                # Khali entries ko filter karna
                 if eng and urdu and eng != 'nan' and urdu != 'nan':
                     cursor.execute("""
                         INSERT OR IGNORE INTO dictionary_words (english_word, urdu_meaning) 
@@ -63,11 +63,11 @@ def load_data_from_files(conn):
                     """, (eng, urdu))
             
             conn.commit()
-            st.sidebar.success("✅ Aapki file se data kamyabi se load ho gaya hai!")
+            st.sidebar.success("✅ Data file se kamyabi se load ho gaya hai!")
         except Exception as e:
-            st.sidebar.error(f"File padhne mein error aaya: {e}")
+            st.sidebar.error(f"File read karne mein error: {e}")
     else:
-        st.sidebar.warning(f"⚠️ '{file_name}' file nahi mili! Please is naam ki file folder mein rakhein.")
+        st.sidebar.warning(f"⚠️ '{file_name}' nahi mili! Please is file ko app.py ke sath rakhein.")
 
 # Database initialize karein
 init_database()
@@ -76,23 +76,17 @@ init_database()
 # 3. INTERACTIVE WEB UI
 # ==========================================
 st.title("📚 English ⇄ Urdu Task Dictionary")
-st.write("Aapki file ke data par mabni modern dictionary app.")
+st.write("Aapki csv file ke data par mabni advanced dictionary.")
 st.markdown("---")
 
-# Sidebar Filters
+# Sidebar Search Controls
 with st.sidebar:
     st.header("🔍 Search Filters")
-    
-    # Requirement: English to Urdu aur Urdu to English Dono Search
-    search_mode = st.radio("Search Mode select karein:", ("English ➜ Urdu", "Urdu ➜ English"))
-    
-    # Live Search Box
-    search_query = st.text_input("Yahan type karein (Type here):", "").strip()
-    
-    # Favorites Option
+    search_mode = st.radio("Search Direction:", ("English ➜ Urdu", "Urdu ➜ English"))
+    search_query = st.text_input("Yahan type karein (Live Search):", "").strip()
     show_favorites = st.checkbox("⭐ Sirf Favorites Dikhayein")
 
-# DB se data filter karke nikalna
+# DB se filtered content nikalna
 conn = get_db_connection()
 cursor = conn.cursor()
 
@@ -111,13 +105,12 @@ query += " ORDER BY english_word ASC LIMIT 100"
 cursor.execute(query, params)
 results = cursor.fetchall()
 
-# UI Layout (Two Columns)
+# UI Layout Columns
 col1, col2 = st.columns([1, 2])
 
 with col1:
     st.subheader("🗂️ Word List")
     if results:
-        # Listbox/Selectbox ke liye dictionary banana
         options_dict = {}
         for row in results:
             w_id, eng, urdu, fav = row
@@ -125,17 +118,17 @@ with col1:
             display_text = f"{star}{eng} ⇄ {urdu}"
             options_dict[display_text] = row
             
-        selected_display = st.selectbox("Koi bhi lafz select karein:", list(options_dict.keys()))
+        selected_display = st.selectbox("Lafz select karein:", list(options_dict.keys()))
         selected_word_data = options_dict[selected_display]
     else:
-        st.info("Koi lafz (word) nahi mila!")
+        st.info("Koi word nahi mila!")
         selected_word_data = None
 
 with col2:
     if selected_word_data:
         word_id, eng_word, urdu_mean, is_fav = selected_word_data
         
-        # English Word Card
+        # English Card
         st.markdown(f"""
         <div style="background-color: #f9f9f9; padding: 20px; border-radius: 10px; border-left: 5px solid #2b5797; margin-bottom: 15px;">
             <p style="color: grey; font-size: 14px; margin: 0;">English Word</p>
@@ -143,7 +136,7 @@ with col2:
         </div>
         """, unsafe_allow_html=True)
         
-        # Urdu Meaning Card
+        # Urdu Card
         st.markdown(f"""
         <div style="background-color: #f1f9f5; padding: 20px; border-radius: 10px; border-left: 5px solid #27ae60; text-align: right;">
             <p style="color: grey; font-size: 14px; margin: 0; text-align: left;">Urdu Meaning / ترجمہ</p>
@@ -153,7 +146,7 @@ with col2:
         
         st.markdown("---")
         
-        # Audio aur Favorite Buttons
+        # Interactive Feature Row
         btn_col1, btn_col2 = st.columns(2)
         
         with btn_col1:
@@ -164,7 +157,7 @@ with col2:
                 tts.write_to_fp(audio_fp)
                 st.audio(audio_fp, format='audio/mp3')
             except Exception as ex:
-                st.error("Audio ke liye internet zaroori hai.")
+                st.error("Audio ke liye internet connection zaroori hai.")
                 
         with btn_col2:
             st.write("⭐ **Favorite Action:**")
