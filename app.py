@@ -4,15 +4,15 @@ from pathlib import Path    # file paths ke liye
 
 import streamlit as st      # web interface banana ke liye
 
-# SQLAlchemy — database ke saath kaam karne ke liye (ORM)
+# SQLAlchemy -- database ke saath kaam karne ke liye (ORM)
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.sql.expression import func  # random word ke liye
 
-# SpeechRecognition — microphone ki awaaz ko text mein badalne ke liye
+# SpeechRecognition -- microphone ki awaaz ko text mein badalne ke liye
 import speech_recognition as sr
 
-# Pandas aur PyPDF2 — optional hain, Excel/PDF se data import ke liye
+# Pandas aur PyPDF2 -- optional hain, Excel/PDF se data import ke liye
 try:
     import pandas as pd
     PANDAS_OK = True
@@ -27,14 +27,14 @@ except ImportError:
 
 
 # ==============================================================
-# SECTION 2 — DATABASE MODEL (ORM)
+# SECTION 2 -- DATABASE MODEL (ORM)
 # Words table ka Python blueprint
 # ==============================================================
 
 # Yeh base class hai jisse Word class inherit karti hai
 Base = declarative_base()
 
-# Database file ka path — app.py ke saath "data" folder mein
+# Database file ka path -- app.py ke saath "data" folder mein
 DB_FILE = Path(__file__).parent / "data" / "words.db"
 
 
@@ -45,10 +45,10 @@ class Word(Base):
     Ek Word object = table ki ek row.
 
     Columns:
-        Sr           — auto-increment serial number (primary key)
-        english_word — English word  (e.g., 'abandon')
-        urdu_meaning — Urdu meaning  (e.g., 'چھوڑنا')
-        is_favorite  — bookmark flag  (True = favorite hai, False = nahi)
+        Sr           -- auto-increment serial number (primary key)
+        english_word -- English word  (e.g., 'abandon')
+        urdu_meaning -- Urdu meaning  (e.g., 'چھوڑنا')
+        is_favorite  -- bookmark flag  (True = favorite hai, False = nahi)
     """
     __tablename__ = "Words"
 
@@ -59,7 +59,7 @@ class Word(Base):
 
 
 # ==============================================================
-# SECTION 3 — DATABASE SETUP
+# SECTION 3 -- DATABASE SETUP
 # Connection banana, schema migrate karna, session return karna
 # ==============================================================
 
@@ -70,12 +70,12 @@ def db_connect():
 
     @st.cache_resource: yeh function sirf pehli baar chalta hai.
     Dobara page load hone par cached session return ho jaata hai.
-
-    # Step 1 — Engine banao
+    """
+    # Step 1 -- Engine banao
     engine = create_engine(f"sqlite:///{DB_FILE}", echo=False)
 
-    # Step 2 — is_favorite column add karo (safe migration)
-    # Agar column pehle se hai to exception aayega — ignore karo
+    # Step 2 -- is_favorite column add karo (safe migration)
+    # Agar column pehle se hai to exception aayega -- ignore karo
     with engine.connect() as conn:
         try:
             conn.execute(text(
@@ -83,13 +83,13 @@ def db_connect():
             ))
             conn.commit()
         except Exception:
-            pass  # column pehle se exist karta hai — theek hai
+            pass  # column pehle se exist karta hai -- theek hai
 
-    # Step 3 — Session banao
+    # Step 3 -- Session banao
     Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine)()
 
-    # Step 4 — Khaali DB mein data bharo
+    # Step 4 -- Khaali DB mein data bharo
     if session.query(Word).count() == 0:
         db_populate(session)
 
@@ -97,7 +97,7 @@ def db_connect():
 
 
 # ==============================================================
-# SECTION 4 — DATA IMPORT
+# SECTION 4 -- DATA IMPORT
 # Excel / PDF / built-in sample se words bharna
 # ==============================================================
 
@@ -105,15 +105,15 @@ def db_populate(session):
     """
     Database mein words bharne ke 3 tarike:
 
-    Tarika A — data.xlsx  (agar file hai aur pandas installed hai)
-    Tarika B — data.pdf   (agar file hai aur PyPDF2 installed hai)
-    Tarika C — built-in sample words (hamesha kaam karta hai)
+    Tarika A -- data.xlsx  (agar file hai aur pandas installed hai)
+    Tarika B -- data.pdf   (agar file hai aur PyPDF2 installed hai)
+    Tarika C -- built-in sample words (hamesha kaam karta hai)
 
     data.xlsx ya data.pdf ko app.py ke saath rakhein.
     """
     imported = False
 
-    # ── Tarika A: Excel file ─────────────────────────────────
+    #    Tarika A: Excel file                                  
     if os.path.exists("data.xlsx") and PANDAS_OK:
         try:
             df = pd.read_excel("data.xlsx")
@@ -139,7 +139,7 @@ def db_populate(session):
         except Exception as e:
             st.warning(f"data.xlsx nahi padh saka: {e}")
 
-    # ── Tarika B: PDF file ───────────────────────────────────
+    #    Tarika B: PDF file                                    
     if not imported and os.path.exists("data.pdf") and PYPDF2_OK:
         try:
             with open("data.pdf", "rb") as f:
@@ -159,7 +159,7 @@ def db_populate(session):
         except Exception as e:
             st.warning(f"data.pdf nahi padh saka: {e}")
 
-    # ── Tarika C: Built-in sample (fallback) ─────────────────
+    #    Tarika C: Built-in sample (fallback)                  
     if session.query(Word).count() == 0:
         samples = [
             ("apple",     "سیب"),
@@ -177,7 +177,7 @@ def db_populate(session):
 
 
 # ==============================================================
-# SECTION 5 — DATABASE QUERIES
+# SECTION 5 -- DATABASE QUERIES
 # Search, favorites, browse ke liye helper functions
 # ==============================================================
 
@@ -186,18 +186,18 @@ def db_search(query: str, direction: str):
     """
     Words dhundne ka function.
 
-    query     — jo user ne likha ya bola (jaise 'apple' ya 'سیب')
-    direction — "eng" ya "urdu"
+    query     -- jo user ne likha ya bola (jaise 'apple' ya 'سیب')
+    direction -- "eng" ya "urdu"
               "eng"  = English column mein dhundho
               "urdu" = Urdu column mein dhundho
 
-    Returns — Word objects ki list (max 200 results)
+    Returns -- Word objects ki list (max 200 results)
     """
     db  = st.session_state.db
     q   = query.strip()
 
     if direction == "eng":
-        # English word mein dhundho — case insensitive, partial match
+        # English word mein dhundho -- case insensitive, partial match
         return (
             db.query(Word)
             .filter(Word.english_word.ilike(f"%{q}%"))
@@ -240,7 +240,7 @@ def db_favorites():
 def db_by_prefix(prefix: str):
     """
     Diye gaye prefix se shuru hone wale saare words return karta hai.
-    Jaise: prefix='ab' → [ab, abacus, abandon, abbreviate, ...]
+    Jaise: prefix='ab' -> [ab, abacus, abandon, abbreviate, ...]
     """
     return (
         st.session_state.db
@@ -266,7 +266,7 @@ def db_prefix_counts():
 
 @st.cache_data(show_spinner=False)
 def db_random():
-    """Database se ek random word nikalata hai — Word of the Day ke liye."""
+    """Database se ek random word nikalata hai -- Word of the Day ke liye."""
     return st.session_state.db.query(Word).order_by(func.random()).first()
 
 
@@ -274,8 +274,8 @@ def db_toggle_favorite(word: Word):
     """
     Word ko favorite banata hai ya un-favorite karta hai.
 
-    is_favorite = False  →  True  (Add to Favorites)
-    is_favorite = True   →  False (Remove from Favorites)
+    is_favorite = False  ->  True  (Add to Favorites)
+    is_favorite = True   ->  False (Remove from Favorites)
 
     Changes database mein save ho jaate hain.
     Cache clear karna zaruri hai warna purana data dikhega.
@@ -284,7 +284,7 @@ def db_toggle_favorite(word: Word):
     word.is_favorite = not word.is_favorite
     db.commit()
 
-    # Caches clear karo — naye data ke saath page dobara render ho
+    # Caches clear karo -- naye data ke saath page dobara render ho
     db_search.clear()
     db_get_one.clear()
     db_favorites.clear()
@@ -293,7 +293,7 @@ def db_toggle_favorite(word: Word):
 
 
 # ==============================================================
-# SECTION 6 — HISTORY
+# SECTION 6 -- HISTORY
 # Is session mein recently dekhe words track karna
 # ==============================================================
 
@@ -311,7 +311,7 @@ def history_add(english_word: str):
 
 
 # ==============================================================
-# SECTION 7 — DISPLAY BLOCKS
+# SECTION 7 -- DISPLAY BLOCKS
 # Screen par word dikhane ke liye reusable functions
 # ==============================================================
 
@@ -334,7 +334,7 @@ def show_word_full(word: Word):
     st.write("**Urdu Meaning — اردو معنی**")
     st.info(word.urdu_meaning)
 
-    # Favorite button — click karne par toggle hota hai
+    # Favorite button -- click karne par toggle hota hai
     if word.is_favorite:
         if st.button("⭐ Remove from Favorites", key=f"fav_{word.Sr}"):
             db_toggle_favorite(word)
@@ -367,10 +367,10 @@ def show_results(query: str, results: list):
     """
     Search results screen par dikhata hai.
 
-    Agar exact match mili → us word ki poori detail pehle dikhao,
+    Agar exact match mili -> us word ki poori detail pehle dikhao,
     baaki milte-julte words neeche cards mein.
 
-    Agar sirf partial match mili → saari results cards mein.
+    Agar sirf partial match mili -> saari results cards mein.
     """
     if not results:
         st.warning(f'**"{query}"** ke liye koi result nahi mila.')
@@ -394,7 +394,7 @@ def show_results(query: str, results: list):
             for w in others[:25]:
                 show_word_card(w)
     else:
-        # Sirf partial results — cards mein
+        # Sirf partial results -- cards mein
         st.write(f"**{len(results)} results mile:**")
         for w in results[:30]:
             show_word_card(w)
@@ -403,7 +403,7 @@ def show_results(query: str, results: list):
 
 
 # ==============================================================
-# SECTION 8 — VOICE HELPER
+# SECTION 8 -- VOICE HELPER
 # Microphone ki audio ko text mein badalna
 # ==============================================================
 
@@ -411,11 +411,11 @@ def voice_to_text(audio_bytes: bytes, language: str) -> str:
     """
     Microphone se recorded audio ko text mein convert karta hai.
 
-    audio_bytes — st.audio_input() se mila WAV audio data (bytes)
-    language    — "en-US" ya "ur-PK" (konsi zubaan mein bol rahe hain)
+    audio_bytes -- st.audio_input() se mila WAV audio data (bytes)
+    language    -- "en-US" ya "ur-PK" (konsi zubaan mein bol rahe hain)
 
-    Returns — text string
-    Raises  — sr.UnknownValueError agar awaaz samajh na aayi
+    Returns -- text string
+    Raises  -- sr.UnknownValueError agar awaaz samajh na aayi
               sr.RequestError agar internet nahi hai
     """
     recognizer = sr.Recognizer()
@@ -428,24 +428,24 @@ def voice_to_text(audio_bytes: bytes, language: str) -> str:
         recognizer.adjust_for_ambient_noise(source, duration=0.3)
         audio_data = recognizer.record(source)
 
-    # Google ka free speech recognition use karo — koi API key nahi chahiye
+    # Google ka free speech recognition use karo -- koi API key nahi chahiye
     return recognizer.recognize_google(audio_data, language=language).strip()
 
 
 # ==============================================================
-# SECTION 9 — PAGE: TEXT SEARCH
+# SECTION 9 -- PAGE: TEXT SEARCH
 # ==============================================================
 
 def page_text_search():
     """
     Text Search Page.
 
-    User kuch type karta hai → database mein dhundhte hain →
+    User kuch type karta hai -> database mein dhundhte hain ->
     screen par results dikhate hain.
 
     Supports:
-    - English → Urdu  (English likhkar Urdu pao)
-    - Urdu → English  (Urdu likhkar English word pao)
+    - English -> Urdu  (English likhkar Urdu pao)
+    - Urdu -> English  (Urdu likhkar English word pao)
     """
     st.subheader("🔍 Text Search — الفاظ تلاش کریں")
 
@@ -456,7 +456,7 @@ def page_text_search():
         horizontal=True
     )
 
-    # "English → Urdu" → eng, "Urdu → English" → urdu
+    # "English -> Urdu" -> eng, "Urdu -> English" -> urdu
     direction = "eng" if "English → Urdu" in direction_label else "urdu"
 
     # Search box
@@ -469,7 +469,7 @@ def page_text_search():
 
     st.divider()
 
-    # Kuch nahi likha → Word of the Day dikhao
+    # Kuch nahi likha -> Word of the Day dikhao
     if not query or not query.strip():
         wotd = db_random()
         if wotd:
@@ -483,21 +483,21 @@ def page_text_search():
 
 
 # ==============================================================
-# SECTION 10 — PAGE: VOICE SEARCH
+# SECTION 10 -- PAGE: VOICE SEARCH
 # ==============================================================
 
 def page_voice_search():
     """
-    Voice Search Page — awaaz se search.
+    Voice Search Page -- awaaz se search.
 
     Kaise kaam karta hai (pure Python):
-    1. st.audio_input()     → browser microphone se record karo
-    2. voice_to_text()      → SpeechRecognition se text mein badlo
-    3. db_search() ya       → database mein dhundho
+    1. st.audio_input()     -> browser microphone se record karo
+    2. voice_to_text()      -> SpeechRecognition se text mein badlo
+    3. db_search() ya       -> database mein dhundho
        db_get_one()
-    4. show_results()       → screen par dikhao
+    4. show_results()       -> screen par dikhao
 
-    Bilkul pure Python — koi JavaScript nahi.
+    Bilkul pure Python -- koi JavaScript nahi.
     Internet chahiye Google Speech Recognition ke liye.
     """
     st.subheader("🎤 Voice Search — آواز سے تلاش")
@@ -516,9 +516,9 @@ def page_voice_search():
 
     st.write("👇 **Microphone button dabao, clearly ek word bolo, phir roko.**")
 
-    # ── Microphone Input ──────────────────────────────────────
+    #    Microphone Input                                       
     # Yeh Streamlit ka native Python widget hai
-    # Browser microphone access karta hai — koi JS code nahi likhna pada
+    # Browser microphone access karta hai -- koi JS code nahi likhna pada
     audio = st.audio_input(
         "Microphone se record karein",
         label_visibility="collapsed"
@@ -526,7 +526,7 @@ def page_voice_search():
 
     st.divider()
 
-    # ── Kuch record nahi hua → Word of the Day dikhao ────────
+    #    Kuch record nahi hua -> Word of the Day dikhao         
     if audio is None:
         wotd = db_random()
         if wotd:
@@ -534,7 +534,7 @@ def page_voice_search():
             show_word_full(wotd)
         return
 
-    # ── Audio record hua — use text mein badlo ────────────────
+    # Audio record hua — use text mein badlo
     st.audio(audio)  # jo record hua use dobara sunao
 
     with st.spinner("Awaaz samajh raha hoon…"):
@@ -587,19 +587,19 @@ def page_voice_search():
 
 
 # ==============================================================
-# SECTION 11 — PAGE: BROWSE
+# SECTION 11 -- PAGE: BROWSE
 # ==============================================================
 
 def page_browse():
     """
-    Browse Page — prefix se words dhundho.
+    Browse Page -- prefix se words dhundho.
 
     Saare words ko pehle 2-letter prefix ke hisaab se group karta hai.
-    User prefix choose kare → us prefix ke saare words list mein.
+    User prefix choose kare -> us prefix ke saare words list mein.
 
     Jaise:
-    AB → ab (399 words): ab, abacus, abandon, abbreviate ...
-    AC → ac (472 words): academic, accent, account, achieve ...
+    AB -> ab (399 words): ab, abacus, abandon, abbreviate ...
+    AC -> ac (472 words): academic, accent, account, achieve ...
     """
     st.subheader("📂 Browse — الفاظ دیکھیں")
 
@@ -611,16 +611,16 @@ def page_browse():
         st.warning("Database mein koi word nahi hai.")
         return
 
-    # Dropdown — prefix choose karo
+    # Dropdown -- prefix choose karo
     chosen = st.selectbox(
         "Prefix choose karein",
         options=prefixes,
-        format_func=lambda p: f"{p.upper()}  —  {counts[p]} words"
+        format_func=lambda p: f"{p.upper()}  --  {counts[p]} words"
     )
 
     words = db_by_prefix(chosen)
 
-    st.write(f"### **{chosen.upper()}** — {len(words)} words")
+    st.write(f"### **{chosen.upper()}** -- {len(words)} words")
     st.divider()
 
     for word in words:
@@ -628,15 +628,15 @@ def page_browse():
 
 
 # ==============================================================
-# SECTION 12 — PAGE: FAVORITES
+# SECTION 12 -- PAGE: FAVORITES
 # ==============================================================
 
 def page_favorites():
     """
-    Favorites Page — pasandida words.
+    Favorites Page -- pasandida words.
 
-    Sirf wo words dikhata hai jinhe user ne ⭐ favorite mark kiya hai.
-    Favorites database mein save rehte hain — app band hone par bhi.
+    Sirf wo words dikhata hai jinhe user ne   favorite mark kiya hai.
+    Favorites database mein save rehte hain -- app band hone par bhi.
     """
     st.subheader("⭐ Favorite Words — پسندیدہ الفاظ")
 
@@ -657,12 +657,12 @@ def page_favorites():
 
 
 # ==============================================================
-# SECTION 13 — PAGE: HISTORY
+# SECTION 13 -- PAGE: HISTORY
 # ==============================================================
 
 def page_history():
     """
-    History Page — is session mein jo words dekhe.
+    History Page -- is session mein jo words dekhe.
 
     Session memory mein rakhi jaati hai.
     Browser band karne par khud clear ho jaati hai.
@@ -693,8 +693,8 @@ def page_history():
 
 
 # ==============================================================
-# SECTION 14 — SIDEBAR
-# Left panel — navigation aur stats
+# SECTION 14 -- SIDEBAR
+# Left panel -- navigation aur stats
 # ==============================================================
 
 def build_sidebar() -> str:
@@ -723,7 +723,7 @@ def build_sidebar() -> str:
         with col_a:
             st.metric("Total Words", f"{total:,}")
         with col_b:
-            st.metric("⭐ Favorites", fav_count)
+            st.metric("  Favorites", fav_count)
 
         st.divider()
 
@@ -731,11 +731,11 @@ def build_sidebar() -> str:
         page = st.radio(
             "Navigation",
             [
-                "🔍 Text Search",
-                "🎤 Voice Search",
-                "📂 Browse",
-                "⭐ Favorites",
-                "🕐 History",
+                "  Text Search",
+                "  Voice Search",
+                "  Browse",
+                "  Favorites",
+                "  History",
             ],
             label_visibility="collapsed"
         )
@@ -746,54 +746,54 @@ def build_sidebar() -> str:
             st.divider()
             st.caption("Haal ki Searches:")
             for eng in reversed(history[-6:]):
-                st.write(f"• {eng}")
+                st.write(f"  {eng}")
 
     return page
 
 
 # ==============================================================
-# SECTION 15 — MAIN (Entry Point)
+# SECTION 15 -- MAIN (Entry Point)
 # App shuru hone ka function
 # ==============================================================
 
 def main():
     """
-    App ka entry point — sabse pehle yahi function chalta hai.
+    App ka entry point -- sabse pehle yahi function chalta hai.
 
     Steps:
     1. Streamlit page settings set karo
-    2. Database se connect karo (ek baar — cache use hota hai)
+    2. Database se connect karo (ek baar -- cache use hota hai)
     3. Sidebar banao, user ka chosen page pata karo
     4. Page ka title dikhao
     5. User ke chosen page ka function call karo
     """
-    # Step 1 — Page settings
+    # Step 1 -- Page settings
     st.set_page_config(
-        page_title="English – Urdu Dictionary",
-        page_icon="📖",
+        page_title="English - Urdu Dictionary",
+        page_icon=" ",
         layout="wide",
         initial_sidebar_state="expanded"
     )
 
-    # Step 2 — Database connect karo
+    # Step 2 -- Database connect karo
     # session_state mein rakhne se har rerun par dobara connect nahi hota
     if "db" not in st.session_state:
         st.session_state.db = db_connect()
 
-    # Step 3 — Sidebar + page selection
+    # Step 3 -- Sidebar + page selection
     chosen_page = build_sidebar()
 
-    # Step 4 — Page title
+    # Step 4 -- Page title
     db    = st.session_state.db
     total = db.query(Word).count()
-    st.title("📖 English – Urdu Dictionary")
+    st.title("  English - Urdu Dictionary")
     st.caption(
-        f"{total:,} words  ·  انگریزی اردو لغت  ·  "
-        "Text Search · Voice Search · Favorites · Browse"
+        f"{total:,} words     انگریزی اردو لغت     "
+        "Text Search   Voice Search   Favorites   Browse"
     )
     st.divider()
 
-    # Step 5 — Chosen page ka function call karo
+    # Step 5 -- Chosen page ka function call karo
     if   "Text Search"  in chosen_page:
         page_text_search()
     elif "Voice Search" in chosen_page:
