@@ -34,26 +34,29 @@ def init_database():
         load_data_from_files()
 
 # ==========================================
-# 2. FIXED FILE LOADING (Handles Real Excel)
+# 2. FILE LOADING (Handles Excel & CSV Formats)
 # ==========================================
 def load_data_from_files():
+    # Checking for .xlsx or alternative naming formats
     file_name = 'Words.xlsx'
     if not os.path.exists(file_name) and os.path.exists('word.xlsx'):
         file_name = 'word.xlsx'
+    elif not os.path.exists(file_name) and os.path.exists('Words.xlsx - A.csv'):
+        file_name = 'Words.xlsx - A.csv'
         
     if os.path.exists(file_name):
         try:
-            # FIX: Using pd.read_excel because your file is a real Excel spreadsheet (.xlsx)
-            df = pd.read_excel(file_name)
+            if file_name.endswith('.csv'):
+                df = pd.read_csv(file_name, encoding='utf-8')
+            else:
+                df = pd.read_excel(file_name)
             
-            # Standardize column names to uppercase to match 'WORDS' and 'MEANING'
             df.columns = [str(col).strip().upper() for col in df.columns]
             
             conn = sqlite3.connect(DB_NAME)
             cursor = conn.cursor()
             
             for _, row in df.iterrows():
-                # Read using the exact column keys from your file
                 eng = str(row.get('WORDS', '')).strip()
                 urdu = str(row.get('MEANING', '')).strip()
                 
@@ -65,11 +68,11 @@ def load_data_from_files():
             
             conn.commit()
             conn.close()
-            st.sidebar.success("✅ Data successfully loaded from Excel file!")
+            st.sidebar.success("✅ Data successfully loaded!")
         except Exception as e:
             st.sidebar.error(f"File read error: {e}")
     else:
-        st.sidebar.warning(f"⚠️ '{file_name}' not found! Place it in the same directory as app.py.")
+        st.sidebar.warning(f"⚠️ Dataset file not found! Please check file path placement.")
 
 # Initialize Database
 init_database()
@@ -78,7 +81,7 @@ init_database()
 # 3. INTERACTIVE WEB UI (ENGLISH)
 # ==========================================
 st.title("📚 English ⇄ Urdu Task Dictionary")
-st.write("Advanced interactive dictionary powered by your Words dataset.")
+st.write("Search for specific words to find meanings and listen to pronunciations instantly.")
 st.markdown("---")
 
 # Sidebar Search Controls
@@ -88,91 +91,58 @@ with st.sidebar:
     search_query = st.text_input("Type here to search (Live Search):", "").strip()
     show_favorites = st.checkbox("⭐ Show Favorites Only")
 
-# Fetch filtered content from DB
-conn = sqlite3.connect(DB_NAME)
-cursor = conn.cursor()
+results = []
 
-if search_mode == "English ➜ Urdu":
-    query = "SELECT id, english_word, urdu_meaning, is_favorite FROM dictionary_words WHERE english_word LIKE ?"
-else:
-    query = "SELECT id, english_word, urdu_meaning, is_favorite FROM dictionary_words WHERE urdu_meaning LIKE ?"
+# Fetch matching records ONLY if a query is typed or if "Show Favorites Only" is checked
+if search_query or show_favorites:
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
 
-params = [f"%{search_query}%"]
+    if search_mode == "English ➜ Urdu":
+        query = "SELECT id, english_word, urdu_meaning, is_favorite FROM dictionary_words WHERE english_word LIKE ?"
+    else:
+        query = "SELECT id, english_word, urdu_meaning, is_favorite FROM dictionary_words WHERE urdu_meaning LIKE ?"
 
-if show_favorites:
-    query += " AND is_favorite = 1"
+    params = [f"%{search_query}%"]
 
-query += " ORDER BY english_word ASC LIMIT 100"
+    if show_favorites:
+        query += " AND is_favorite = 1"
 
-cursor.execute(query, params)
-results = cursor.fetchall()
-conn.close()
+    query += " ORDER BY english_word ASC LIMIT 50"
+
+    cursor.execute(query, params)
+    results = cursor.fetchall()
+    conn.close()
 
 # UI Layout Columns
 col1, col2 = st.columns([1, 2])
 
+selected_word_data = None
+
 with col1:
-    st.subheader("🗂️ Word List")
-    if results:
-        options_dict = {}
-        for row in results:
-            w_id, eng, urdu, fav = row
-            star = "⭐ " if fav == 1 else ""
-            display_text = f"{star}{eng} ⇄ {urdu}"
-            options_dict[display_text] = row
-            
-        selected_display = st.selectbox("Select a word:", list(options_dict.keys()))
-        selected_word_data = options_dict[selected_display]
+    st.subheader("🗂️ Search Results")
+    
+    # Logic to only display options when a search is actively requested
+    if search_query or show_favorites:
+        if results:
+            options_dict = {}
+            for row in results:
+                w_id, eng, urdu, fav = row
+                star = "⭐ " if fav == 1 else ""
+                display_text = f"{star}{eng} ⇄ {urdu}"
+                options_dict[display_text] = row
+                
+            selected_display = st.selectbox("Select from matching words:", list(options_dict.keys()))
+            selected_word_data = options_dict[selected_display]
+        else:
+            st.info("No matching words found.")
     else:
-        st.info("No words found matching your search.")
-        selected_word_data = None
+        st.info("🔍 Please type a word in the sidebar search bar to begin.")
 
 with col2:
     if selected_word_data:
         word_id, eng_word, urdu_mean, is_fav = selected_word_data
         
-        # English Card View
+        # English Word Display
         st.markdown(f"""
-        <div style="background-color: #f9f9f9; padding: 20px; border-radius: 10px; border-left: 5px solid #2b5797; margin-bottom: 15px;">
-            <p style="color: grey; font-size: 14px; margin: 0;">English Word</p>
-            <h1 style="margin: 0; color: #2b5797;">{eng_word}</h1>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Urdu Card View
-        st.markdown(f"""
-        <div style="background-color: #f1f9f5; padding: 20px; border-radius: 10px; border-left: 5px solid #27ae60; text-align: right;">
-            <p style="color: grey; font-size: 14px; margin: 0; text-align: left;">Urdu Meaning / ترجمہ</p>
-            <h1 style="margin: 0; color: #27ae60; font-family: 'Arial';">{urdu_mean}</h1>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("---")
-        
-        # Features Action Row
-        btn_col1, btn_col2 = st.columns(2)
-        
-        with btn_col1:
-            st.write("🔊 **Pronunciation:**")
-            try:
-                tts = gTTS(text=eng_word, lang='en')
-                audio_fp = io.BytesIO()
-                tts.write_to_fp(audio_fp)
-                audio_fp.seek(0)
-                st.audio(audio_fp.read(), format='audio/mp3')
-            except Exception as ex:
-                st.error("Internet connection required for audio pronunciation.")
-                
-        with btn_col2:
-            st.write("⭐ **Favorite Action:**")
-            fav_button_text = "❌ Remove from Favorites" if is_fav == 1 else "⭐ Add to Favorites"
-            if st.button(fav_button_text, use_container_width=True):
-                new_status = 0 if is_fav == 1 else 1
-                
-                conn_write = sqlite3.connect(DB_NAME)
-                cursor_write = conn_write.cursor()
-                cursor_write.execute("UPDATE dictionary_words SET is_favorite = ? WHERE id = ?", (new_status, word_id))
-                conn_write.commit()
-                conn_write.close()
-                
-                st.rerun()
+        <div
