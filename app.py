@@ -8,17 +8,15 @@ import io
 # Page Configuration
 st.set_page_config(page_title="English-Urdu Dictionary", layout="wide", page_icon="📚")
 
-# ==========================================
-# 1. DATABASE SETUP
-# ==========================================
-def get_db_connection():
-    conn = sqlite3.connect('dictionary.db')
-    return conn
+DB_NAME = 'dictionary.db'
 
+# ==========================================
+# 1. DATABASE SETUP (Safe & Atomic)
+# ==========================================
 def init_database():
-    conn = get_db_connection()
+    conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    # Table structure aapke data ke mutabik
+    # Table structure aapki file ke mutabik
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS dictionary_words (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,33 +27,31 @@ def init_database():
     ''')
     conn.commit()
     
-    # Check karein agar data pehle se maujood nahi hai toh load karein
     cursor.execute("SELECT COUNT(*) FROM dictionary_words")
-    if cursor.fetchone()[0] == 0:
-        load_data_from_files(conn)  # <-- Yeh naam ab bilkul sahi hai!
-        
+    count = cursor.fetchone()[0]
     conn.close()
+    
+    if count == 0:
+        load_data_from_files()
 
 # ==========================================
 # 2. AAPKI FILE SE DATA LOAD KARNA
 # ==========================================
-def load_data_from_files(conn):
-    cursor = conn.cursor()
-    
-    # Aapki file ka sahi naam
+def load_data_from_files():
     file_name = 'Words.xlsx - A.csv'
     
     if os.path.exists(file_name):
         try:
-            # CSV file ko read karna (Urdu fonts ke liye utf-8 zaroori hai)
+            # CSV file ko read karna (S#, WORDS, MEANING columns)
             df = pd.read_csv(file_name, encoding='utf-8')
             
-            # Aapki file ke columns: 'WORDS' aur 'MEANING'
+            conn = sqlite3.connect(DB_NAME)
+            cursor = conn.cursor()
+            
             for _, row in df.iterrows():
                 eng = str(row['WORDS']).strip()
                 urdu = str(row['MEANING']).strip()
                 
-                # Khali entries ko filter karna
                 if eng and urdu and eng != 'nan' and urdu != 'nan':
                     cursor.execute("""
                         INSERT OR IGNORE INTO dictionary_words (english_word, urdu_meaning) 
@@ -63,11 +59,12 @@ def load_data_from_files(conn):
                     """, (eng, urdu))
             
             conn.commit()
-            st.sidebar.success("✅ Data file se kamyabi se load ho gaya hai!")
+            conn.close()
+            st.sidebar.success("✅ Data load ho gaya!")
         except Exception as e:
             st.sidebar.error(f"File read karne mein error: {e}")
     else:
-        st.sidebar.warning(f"⚠️ '{file_name}' nahi mili! Please is file ko app.py ke sath rakhein.")
+        st.sidebar.warning(f"⚠️ '{file_name}' nahi mili! Is file ko app.py ke sath rakhein.")
 
 # Database initialize karein
 init_database()
@@ -76,7 +73,7 @@ init_database()
 # 3. INTERACTIVE WEB UI
 # ==========================================
 st.title("📚 English ⇄ Urdu Task Dictionary")
-st.write("Aapki csv file ke data par mabni advanced dictionary.")
+st.write("Aapki Words file ke mutabik banayi gayi advanced dictionary.")
 st.markdown("---")
 
 # Sidebar Search Controls
@@ -86,16 +83,16 @@ with st.sidebar:
     search_query = st.text_input("Yahan type karein (Live Search):", "").strip()
     show_favorites = st.checkbox("⭐ Sirf Favorites Dikhayein")
 
-# DB se filtered content nikalna
-conn = get_db_connection()
+# DB se filtered content nikalna (Alag connection taaki lock na ho)
+conn = sqlite3.connect(DB_NAME)
 cursor = conn.cursor()
 
 if search_mode == "English ➜ Urdu":
     query = "SELECT id, english_word, urdu_meaning, is_favorite FROM dictionary_words WHERE english_word LIKE ?"
-    params = [f"%{search_query}%"]
 else:
     query = "SELECT id, english_word, urdu_meaning, is_favorite FROM dictionary_words WHERE urdu_meaning LIKE ?"
-    params = [f"%{search_query}%"]
+
+params = [f"%{search_query}%"]
 
 if show_favorites:
     query += " AND is_favorite = 1"
@@ -104,6 +101,7 @@ query += " ORDER BY english_word ASC LIMIT 100"
 
 cursor.execute(query, params)
 results = cursor.fetchall()
+conn.close() # Connection ko fauran close kar diya
 
 # UI Layout Columns
 col1, col2 = st.columns([1, 2])
@@ -155,7 +153,8 @@ with col2:
                 tts = gTTS(text=eng_word, lang='en')
                 audio_fp = io.BytesIO()
                 tts.write_to_fp(audio_fp)
-                st.audio(audio_fp, format='audio/mp3')
+                audio_fp.seek(0) # FIX: Pointer ko shuru mein laayein
+                st.audio(audio_fp.read(), format='audio/mp3') # FIX: Direct bytes read karein
             except Exception as ex:
                 st.error("Audio ke liye internet connection zaroori hai.")
                 
@@ -164,8 +163,12 @@ with col2:
             fav_button_text = "❌ Favorite se Hatayein" if is_fav == 1 else "⭐ Favorite Banayein"
             if st.button(fav_button_text, use_container_width=True):
                 new_status = 0 if is_fav == 1 else 1
-                cursor.execute("UPDATE dictionary_words SET is_favorite = ? WHERE id = ?", (new_status, word_id))
-                conn.commit()
+                
+                # Alag se write connection kholna safe rehata hai
+                conn_write = sqlite3.connect(DB_NAME)
+                cursor_write = conn_write.cursor()
+                cursor_write.execute("UPDATE dictionary_words SET is_favorite = ? WHERE id = ?", (new_status, word_id))
+                conn_write.commit()
+                conn_write.close()
+                
                 st.rerun()
-
-conn.close()
